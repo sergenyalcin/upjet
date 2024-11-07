@@ -92,10 +92,10 @@ func tfJSONNestedAttributeTypeToV2Schema(na *tfjson.SchemaNestedAttributeType) *
 		v2sch.Type = schemav2.TypeList
 	case tfjson.SchemaNestingModeMap:
 		v2sch.Type = schemav2.TypeMap
-	case tfjson.SchemaNestingModeSingle:
+	case tfjson.SchemaNestingModeSingle, tfjson.SchemaNestingModeGroup:
 		v2sch.Type = schemav2.TypeList
 		v2sch.MinItems = 0
-		v2sch.Required = hasNestedAttributeRequiredChild(na)
+		v2sch.Required = false
 		v2sch.Optional = !v2sch.Required
 		if v2sch.Required {
 			v2sch.MinItems = 1
@@ -288,6 +288,25 @@ func schemaV2TypeFromCtyType(typ cty.Type, schema *schemav2.Schema) error { //no
 		schema.Elem = elemType
 	case typ.IsTupleType():
 		return errors.New("cannot convert cty TupleType to schema v2 type")
+	case typ.IsObjectType():
+		typ.AttributeTypes()
+		res := &schemav2.Resource{}
+		res.Schema = make(map[string]*schemav2.Schema, len(typ.AttributeTypes()))
+		for key, attrTyp := range typ.AttributeTypes() {
+			sch := &schemav2.Schema{
+				Computed: schema.Computed,
+				Optional: schema.Optional,
+			}
+			if err := schemaV2TypeFromCtyType(attrTyp, sch); err != nil {
+				return err
+			}
+			res.Schema[key] = sch
+		}
+		schema.ConfigMode = configMode
+		schema.Type = schemav2.TypeList
+		schema.Elem = res
+		schema.MaxItems = 1
+		schema.MinItems = 0
 	case typ.Equals(cty.DynamicPseudoType):
 		return errors.New("cannot convert cty DynamicPseudoType to schema v2 type")
 	}

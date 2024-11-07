@@ -75,3 +75,21 @@ func (l *SingletonListEmbedder) VisitResource(r *traverser.ResourceNode) error {
 	l.r.AddSingletonListConversion(traverser.FieldPathWithWildcard(r.TFPath), traverser.FieldPathWithWildcard(r.CRDPath))
 	return nil
 }
+
+type NestedObjectEmbedder struct {
+	resourceContext
+	traverser.NoopTraverser
+}
+
+func (l *NestedObjectEmbedder) VisitResource(r *traverser.ResourceNode) error {
+	// this visitor only works on sets and lists with the MaxItems constraint
+	// of 1.
+	if r.Schema.Type != schema.TypeList && r.Schema.Type != schema.TypeSet {
+		return nil
+	}
+	if r.Schema.MaxItems != 1 {
+		return nil
+	}
+	l.r.AddNestedObjectEmbedder(traverser.FieldPathWithWildcard(r.TFPath))
+	return nil
+}

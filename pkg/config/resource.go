@@ -755,6 +755,15 @@ func (r *Resource) RemoveSingletonListConversion(tfPath string) bool {
 	return false
 }
 
+func (r *Resource) AddNestedObjectEmbedder(tfPath string) {
+	// SchemaElementOptions.SetEmbeddedObject does not expect the indices and
+	// because we are dealing with singleton lists here, we only expect wildcards
+	// or the zero-index.
+	nPath := strings.ReplaceAll(tfPath, "[*]", "")
+	nPath = strings.ReplaceAll(nPath, "[0]", "")
+	r.SchemaElementOptions.SetEmbeddedObject(nPath)
+}
+
 // SetEmbeddedObject sets the EmbeddedObject for the specified key.
 // The key is a Terraform field path without the wildcard segments.
 func (m SchemaElementOptions) SetEmbeddedObject(el string) {
