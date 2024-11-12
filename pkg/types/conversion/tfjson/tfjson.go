@@ -43,7 +43,7 @@ func v2ResourceFromTFJSONSchema(s *tfjson.Schema) *schemav2.Resource {
 
 	for k, v := range s.Block.Attributes {
 		if v.AttributeNestedType != nil {
-			toSchemaMap[k] = tfJSONNestedAttributeTypeToV2Schema(v.AttributeNestedType)
+			toSchemaMap[k] = tfJSONNestedAttributeTypeToV2Schema(v)
 		} else {
 			toSchemaMap[k] = tfJSONAttributeToV2Schema(v)
 		}
@@ -80,10 +80,13 @@ func tfJSONAttributeToV2Schema(attr *tfjson.SchemaAttribute) *schemav2.Schema {
 	return v2sch
 }
 
-func tfJSONNestedAttributeTypeToV2Schema(na *tfjson.SchemaNestedAttributeType) *schemav2.Schema {
+func tfJSONNestedAttributeTypeToV2Schema(nestedAttr *tfjson.SchemaAttribute) *schemav2.Schema {
+	na := nestedAttr.AttributeNestedType
 	v2sch := &schemav2.Schema{
 		MinItems: int(na.MinItems),
 		MaxItems: int(na.MaxItems),
+		Required: nestedAttr.Required,
+		Optional: nestedAttr.Optional,
 	}
 	switch na.NestingMode { //nolint:exhaustive
 	case tfjson.SchemaNestingModeSet:
@@ -104,16 +107,38 @@ func tfJSONNestedAttributeTypeToV2Schema(na *tfjson.SchemaNestedAttributeType) *
 	default:
 		panic("unhandled nesting mode: " + na.NestingMode)
 	}
+	/*
+		if na.NestingMode == tfjson.SchemaNestingModeMap {
+			elem := &schemav2.Schema{}
+			elem.MaxItems = 1
+			elem.MinItems = 1
+			elem.Required = false
+			elem.Type = schemav2.TypeList
+			elemRes := &schemav2.Resource{}
+			elemRes.Schema = make(map[string]*schemav2.Schema, len(na.Attributes))
+			for key, attr := range na.Attributes {
+				if attr.AttributeNestedType != nil {
+					elemRes.Schema[key] = tfJSONNestedAttributeTypeToV2Schema(attr.AttributeNestedType)
+				} else {
+					elemRes.Schema[key] = tfJSONAttributeToV2Schema(attr)
+				}
+			}
+			elem.Elem = elemRes
 
+		}
+	*/
 	res := &schemav2.Resource{}
 	res.Schema = make(map[string]*schemav2.Schema, len(na.Attributes))
 	for key, attr := range na.Attributes {
 		if attr.AttributeNestedType != nil {
-			res.Schema[key] = tfJSONNestedAttributeTypeToV2Schema(attr.AttributeNestedType)
+			res.Schema[key] = tfJSONNestedAttributeTypeToV2Schema(attr)
 		} else {
 			res.Schema[key] = tfJSONAttributeToV2Schema(attr)
 		}
 	}
+	//if na.NestingMode == tfjson.SchemaNestingModeMap {
+	//	res.Schema["__mapkey"] = &schemav2.Schema{}
+	//}
 	v2sch.Elem = res
 	return v2sch
 }

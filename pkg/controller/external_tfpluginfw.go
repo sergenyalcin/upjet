@@ -303,13 +303,17 @@ func (n *terraformPluginFrameworkExternalClient) Observe(ctx context.Context, mg
 		TypeName:     n.config.Name,
 		CurrentState: n.opTracker.GetFrameworkTFState(),
 	}
+
+	extName, err := n.config.ExternalName.GetExternalNameFn(n.params)
+	hasExternalName := err == nil && len(extName) != 0
+
 	readResponse, err := n.server.ReadResource(ctx, readRequest)
 
 	if err != nil {
 		return managed.ExternalObservation{}, errors.Wrap(err, "cannot read resource")
 	}
 
-	if fatalDiags := getFatalDiagnostics(readResponse.Diagnostics); fatalDiags != nil {
+	if fatalDiags := getFatalDiagnostics(readResponse.Diagnostics); fatalDiags != nil && hasExternalName {
 		return managed.ExternalObservation{}, errors.Wrap(fatalDiags, "read resource request failed")
 	}
 
@@ -417,6 +421,8 @@ func (n *terraformPluginFrameworkExternalClient) Create(ctx context.Context, mg 
 	}
 	metrics.ExternalAPITime.WithLabelValues("create").Observe(time.Since(start).Seconds())
 	if fatalDiags := getFatalDiagnostics(applyResponse.Diagnostics); fatalDiags != nil {
+		// set state here as we might recover some
+		n.opTracker.SetFrameworkTFState(applyResponse.NewState)
 		return managed.ExternalCreation{}, errors.Wrap(fatalDiags, "resource creation call returned error diags")
 	}
 

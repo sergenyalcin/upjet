@@ -218,7 +218,9 @@ func (g *Builder) buildSchema(f *Field, cfg *config.Resource, names []string, cp
 		return types.NewPointer(types.Universe.Lookup("string").Type()), nil, nil
 	case schema.TypeMap, schema.TypeList, schema.TypeSet:
 		names = append(names, f.Name.Camel)
-		if f.Schema.Type != schema.TypeMap {
+		_, hasNonPrimitiveElement := f.Schema.Elem.(*schema.Resource)
+		isNonPrimitiveMap := (f.Schema.Type == schema.TypeMap) && hasNonPrimitiveElement
+		if (f.Schema.Type != schema.TypeMap && !cfg.SchemaElementOptions.EmbeddedObject(cpath)) || isNonPrimitiveMap {
 			// We don't want to have a many-to-many relationship in case of a Map, since we use SecretReference as
 			// the type of XP field. In this case, we want to have a one-to-many relationship which is handled at
 			// runtime in the controller.
@@ -227,6 +229,7 @@ func (g *Builder) buildSchema(f *Field, cfg *config.Resource, names []string, cp
 		}
 		var elemType types.Type
 		var initElemType types.Type
+		// var isNestedMap bool
 		switch et := f.Schema.Elem.(type) {
 		case schema.ValueType:
 			switch et {
@@ -240,6 +243,8 @@ func (g *Builder) buildSchema(f *Field, cfg *config.Resource, names []string, cp
 				elemType = types.Universe.Lookup("string").Type()
 			case schema.TypeMap, schema.TypeList, schema.TypeSet, schema.TypeInvalid:
 				return nil, nil, errors.Errorf("element type of %s is basic but not one of known basic types", traverser.FieldPath(names))
+			default:
+				return nil, nil, errors.Errorf("element type of %s is basic but not one of known basic types: %v", traverser.FieldPath(names), et)
 			}
 			initElemType = elemType
 		case *schema.Schema:
@@ -251,11 +256,18 @@ func (g *Builder) buildSchema(f *Field, cfg *config.Resource, names []string, cp
 			initElemType = elemType
 		case *schema.Resource:
 			var asBlocksMode bool
+
 			// TODO(muvaf): We skip the other type once we choose one of param
 			// or obs types. This might cause some fields to be completely omitted.
 			if f.Schema.ConfigMode == schema.SchemaConfigModeAttr {
 				asBlocksMode = true
 			}
+
+			//if _, ok := et.Schema["__mapkey"]; ok {
+			//	isNestedMap = true
+			//	delete(et.Schema, "__mapkey")
+			//}
+
 			paramType, obsType, initType, err := g.buildResource(et, cfg, f.TerraformPaths, f.CRDPaths, asBlocksMode, names...)
 			if err != nil {
 				return nil, nil, errors.Wrapf(err, "cannot infer type from resource schema of element type of %s", traverser.FieldPath(names))
@@ -295,6 +307,8 @@ func (g *Builder) buildSchema(f *Field, cfg *config.Resource, names []string, cp
 					var t types.Type
 					if cfg.SchemaElementOptions.EmbeddedObject(cpath) {
 						t = types.NewPointer(obsType)
+					} else if f.Schema.Type == schema.TypeMap {
+						t = types.NewMap(types.Universe.Lookup("string").Type(), obsType)
 					} else {
 						t = types.NewSlice(obsType)
 					}
@@ -315,6 +329,9 @@ func (g *Builder) buildSchema(f *Field, cfg *config.Resource, names []string, cp
 		if cfg.SchemaElementOptions.EmbeddedObject(cpath) {
 			return types.NewPointer(elemType), types.NewPointer(initElemType), nil
 		}
+		//if isNestedMap {
+		//	return types.NewMap(types.Universe.Lookup("string").Type(), elemType), types.NewMap(types.Universe.Lookup("string").Type(), initElemType), nil
+		//}
 		// NOTE(muvaf): Maps and slices are already pointers, so we don't need to
 		// wrap them even if they are optional.
 		if f.Schema.Type == schema.TypeMap {
