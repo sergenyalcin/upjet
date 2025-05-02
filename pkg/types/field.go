@@ -12,7 +12,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/pkg/errors"
 	"k8s.io/utils/ptr"
 
@@ -20,6 +19,7 @@ import (
 	"github.com/crossplane/upjet/pkg/config"
 	"github.com/crossplane/upjet/pkg/schema/traverser"
 	"github.com/crossplane/upjet/pkg/types/comments"
+	"github.com/crossplane/upjet/pkg/types/conversion/tfjson"
 	"github.com/crossplane/upjet/pkg/types/name"
 )
 
@@ -34,7 +34,7 @@ var parentheses = regexp.MustCompile(`\(([^)]+)\)`)
 // Field represents a field that is built from the Terraform schema.
 // It contains the go field related information such as tags, field type, comment.
 type Field struct {
-	Schema                                   *schema.Schema
+	Schema                                   *tfjson.Schema
 	Name                                     name.Name
 	Comment                                  *comments.Comment
 	TFTag, JSONTag, FieldNameCamel           string
@@ -107,7 +107,7 @@ func getDocString(cfg *config.Resource, f *Field, tfPath []string) string { //no
 }
 
 // NewField returns a constructed Field object.
-func NewField(g *Builder, cfg *config.Resource, r *resource, sch *schema.Schema, snakeFieldName string, tfPath, xpPath, names []string, asBlocksMode bool) (*Field, error) { //nolint:gocyclo // easy to follow
+func NewField(g *Builder, cfg *config.Resource, r *resource, sch *tfjson.Schema, snakeFieldName string, tfPath, xpPath, names []string, asBlocksMode bool) (*Field, error) { //nolint:gocyclo // easy to follow
 	f := &Field{
 		Schema:         sch,
 		Name:           name.NewFromSnake(snakeFieldName),
@@ -191,20 +191,20 @@ func AddServerSideApplyMarkers(f *Field) {
 	}
 
 	switch f.Schema.Type { //nolint:exhaustive
-	case schema.TypeMap:
+	case tfjson.TypeMap:
 		// A map should always have an element of type Schema.
-		if es, ok := f.Schema.Elem.(*schema.Schema); ok {
+		if es, ok := f.Schema.Elem.(*tfjson.Schema); ok {
 			switch es.Type { //nolint:exhaustive
 			// We assume scalar types can be granular maps.
-			case schema.TypeString, schema.TypeBool, schema.TypeInt, schema.TypeFloat:
+			case tfjson.TypeString, tfjson.TypeBool, tfjson.TypeFloat:
 				f.Comment.ServerSideApplyOptions.MapType = ptr.To[config.MapType](config.MapTypeGranular)
 			}
 		}
-	case schema.TypeSet:
-		if es, ok := f.Schema.Elem.(*schema.Schema); ok {
+	case tfjson.TypeSet:
+		if es, ok := f.Schema.Elem.(*tfjson.Schema); ok {
 			switch es.Type { //nolint:exhaustive
 			// We assume scalar types can be granular sets.
-			case schema.TypeString, schema.TypeBool, schema.TypeInt, schema.TypeFloat:
+			case tfjson.TypeString, tfjson.TypeBool, tfjson.TypeFloat:
 				f.Comment.ServerSideApplyOptions.ListType = ptr.To[config.ListType](config.ListTypeSet)
 			}
 		}
@@ -239,7 +239,7 @@ func AddServerSideApplyMarkersFromConfig(f *Field, cfg *config.Resource) error {
 			continue
 		}
 		switch f.Schema.Type { //nolint:exhaustive
-		case schema.TypeList, schema.TypeSet:
+		case tfjson.TypeList, tfjson.TypeSet:
 			if s.ListMergeStrategy.MergeStrategy == "" || s.MapMergeStrategy != "" || s.StructMergeStrategy != "" {
 				return errors.Errorf(errFmtInvalidSSAConfiguration, k, "list", "ListMergeStrategy")
 			}
@@ -255,7 +255,7 @@ func AddServerSideApplyMarkersFromConfig(f *Field, cfg *config.Resource) error {
 			if len(f.Comment.ServerSideApplyOptions.ListMapKey) == 0 {
 				return errors.Errorf(errFmtMissingListMapKeys, k)
 			}
-		case schema.TypeMap:
+		case tfjson.TypeMap:
 			if s.MapMergeStrategy == "" || s.ListMergeStrategy.MergeStrategy != "" || s.StructMergeStrategy != "" {
 				return errors.Errorf(errFmtInvalidSSAConfiguration, k, "map", "MapMergeStrategy")
 			}
@@ -272,14 +272,14 @@ func AddServerSideApplyMarkersFromConfig(f *Field, cfg *config.Resource) error {
 }
 
 // NewSensitiveField returns a constructed sensitive Field object.
-func NewSensitiveField(g *Builder, cfg *config.Resource, r *resource, sch *schema.Schema, snakeFieldName string, tfPath, xpPath, names []string, asBlocksMode bool) (*Field, bool, error) { //nolint:gocyclo
+func NewSensitiveField(g *Builder, cfg *config.Resource, r *resource, sch *tfjson.Schema, snakeFieldName string, tfPath, xpPath, names []string, asBlocksMode bool) (*Field, bool, error) { //nolint:gocyclo
 	f, err := NewField(g, cfg, r, sch, snakeFieldName, tfPath, xpPath, names, asBlocksMode)
 	if err != nil {
 		return nil, false, err
 	}
 	f.Sensitive = true
 
-	if IsObservation(f.Schema) {
+	if f.Schema.Observation {
 		cfg.Sensitive.AddFieldPath(traverser.FieldPathWithWildcard(f.TerraformPaths), "status.atProvider."+traverser.FieldPathWithWildcard(f.CRDPaths))
 		// Drop an observation field from schema if it is sensitive.
 		// Data will be stored in connection details secret
@@ -314,7 +314,7 @@ func NewSensitiveField(g *Builder, cfg *config.Resource, r *resource, sch *schem
 	}
 	f.TransformedName = name.NewFromCamel(f.FieldNameCamel).LowerCamelComputed
 	f.JSONTag = f.TransformedName
-	if f.Schema.Optional {
+	if !f.Schema.Required {
 		f.FieldType = types.NewPointer(f.FieldType)
 		f.JSONTag += ",omitempty"
 	}
@@ -323,7 +323,7 @@ func NewSensitiveField(g *Builder, cfg *config.Resource, r *resource, sch *schem
 }
 
 // NewReferenceField returns a constructed reference Field object.
-func NewReferenceField(g *Builder, cfg *config.Resource, r *resource, sch *schema.Schema, ref *config.Reference, snakeFieldName string, tfPath, xpPath, names []string, asBlocksMode bool) (*Field, error) {
+func NewReferenceField(g *Builder, cfg *config.Resource, r *resource, sch *tfjson.Schema, ref *config.Reference, snakeFieldName string, tfPath, xpPath, names []string, asBlocksMode bool) (*Field, error) {
 	f, err := NewField(g, cfg, r, sch, snakeFieldName, tfPath, xpPath, names, asBlocksMode)
 	if err != nil {
 		return nil, err
@@ -331,7 +331,7 @@ func NewReferenceField(g *Builder, cfg *config.Resource, r *resource, sch *schem
 	f.Reference = ref
 
 	f.Comment.Reference = *ref
-	f.Schema.Optional = true
+	f.Schema.Required = false
 
 	return f, nil
 }
@@ -370,7 +370,7 @@ func (f *Field) AddToResource(g *Builder, r *resource, typeNames *TypeNames, add
 		r.addObservationField(f, field)
 	}
 
-	if !IsObservation(f.Schema) {
+	if !f.Schema.Observation {
 		if f.AsBlocksMode {
 			f.TFTag = strings.TrimSuffix(f.TFTag, ",omitempty")
 		}

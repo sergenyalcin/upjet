@@ -136,9 +136,9 @@ func tfJSONNestedAttributeTypeToV2Schema(nestedAttr *tfjson.SchemaAttribute) *sc
 			res.Schema[key] = tfJSONAttributeToV2Schema(attr)
 		}
 	}
-	//if na.NestingMode == tfjson.SchemaNestingModeMap {
+	// if na.NestingMode == tfjson.SchemaNestingModeMap {
 	//	res.Schema["__mapkey"] = &schemav2.Schema{}
-	//}
+	// }
 	v2sch.Elem = res
 	return v2sch
 }

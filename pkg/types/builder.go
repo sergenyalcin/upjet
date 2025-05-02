@@ -11,13 +11,13 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	twtypes "github.com/muvaf/typewriter/pkg/types"
 	"github.com/pkg/errors"
 	"k8s.io/utils/ptr"
 
 	"github.com/crossplane/upjet/pkg/config"
 	"github.com/crossplane/upjet/pkg/schema/traverser"
+	"github.com/crossplane/upjet/pkg/types/conversion/tfjson"
 )
 
 const (
@@ -74,7 +74,7 @@ func (g *Builder) Build(cfg *config.Resource) (Generated, error) {
 		return Generated{}, errors.Wrapf(err, "cannot inject server-side apply merge keys for resource %q", cfg.Name)
 	}
 
-	fp, ap, ip, err := g.buildResource(cfg.TerraformResource, cfg, nil, nil, false, cfg.Kind)
+	fp, ap, ip, err := g.buildResource(cfg.UpjetResource, cfg, nil, nil, false, cfg.Kind)
 	return Generated{
 		Types:            g.genTypes,
 		Comments:         g.comments,
@@ -96,24 +96,24 @@ func injectServerSideApplyListMergeKeys(cfg *config.Resource) error { //nolint:g
 		if s.ListMergeStrategy.ListMapKeys.InjectedKey.Key == "" {
 			continue
 		}
-		sch := config.GetSchema(cfg.TerraformResource, f)
+		sch := config.GetSchema(cfg.UpjetResource, f)
 		if sch == nil {
 			return errors.Errorf("cannot find the Terraform schema for the argument at the path %q", f)
 		}
-		if sch.Type != schema.TypeList && sch.Type != schema.TypeSet {
+		if sch.Type != tfjson.TypeList && sch.Type != tfjson.TypeSet {
 			return errors.Errorf("fieldpath %q is not a Terraform list or set", f)
 		}
-		el, ok := sch.Elem.(*schema.Resource)
+		el, ok := sch.Elem.(*tfjson.Resource)
 		if !ok {
-			return errors.Errorf("fieldpath %q is a Terraform list or set but its element type is not a Terraform *schema.Resource", f)
+			return errors.Errorf("fieldpath %q is a Terraform list or set but its element type is not a Terraform *tfjson.Resource", f)
 		}
 		for k := range el.Schema {
 			if k == s.ListMergeStrategy.ListMapKeys.InjectedKey.Key {
 				return errors.Errorf("element schema for the object list %q already contains the argument key %q", f, k)
 			}
 		}
-		el.Schema[s.ListMergeStrategy.ListMapKeys.InjectedKey.Key] = &schema.Schema{
-			Type:        schema.TypeString,
+		el.Schema[s.ListMergeStrategy.ListMapKeys.InjectedKey.Key] = &tfjson.Schema{
+			Type:        tfjson.TypeString,
 			Required:    true,
 			Description: descriptionInjectedKey,
 		}
@@ -124,7 +124,7 @@ func injectServerSideApplyListMergeKeys(cfg *config.Resource) error { //nolint:g
 	return nil
 }
 
-func (g *Builder) buildResource(res *schema.Resource, cfg *config.Resource, tfPath []string, xpPath []string, asBlocksMode bool, names ...string) (*types.Named, *types.Named, *types.Named, error) { //nolint:gocyclo
+func (g *Builder) buildResource(res *tfjson.Resource, cfg *config.Resource, tfPath []string, xpPath []string, asBlocksMode bool, names ...string) (*types.Named, *types.Named, *types.Named, error) { //nolint:gocyclo
 	// NOTE(muvaf): There can be fields in the same CRD with same name but in
 	// different types. Since we generate the type using the field name, there
 	// can be collisions. In order to be able to generate unique names consistently,
@@ -142,7 +142,7 @@ func (g *Builder) buildResource(res *schema.Resource, cfg *config.Resource, tfPa
 		cPath := traverser.FieldPath(append(tfPath, snakeFieldName))
 		ref, ok := cfg.References[cPath]
 		// if a reference is configured and the field does not belong to status
-		if ok && !IsObservation(res.Schema[snakeFieldName]) {
+		if ok && !res.Schema[snakeFieldName].Observation {
 			reference = &ref
 		}
 
@@ -208,65 +208,63 @@ func (g *Builder) AddToBuilder(typeNames *TypeNames, r *resource) (*types.Named,
 
 func (g *Builder) buildSchema(f *Field, cfg *config.Resource, names []string, cpath string, r *resource) (types.Type, types.Type, error) { //nolint:gocyclo
 	switch f.Schema.Type {
-	case schema.TypeBool:
+	case tfjson.TypeBool:
 		return types.NewPointer(types.Universe.Lookup("bool").Type()), nil, nil
-	case schema.TypeFloat:
+	case tfjson.TypeFloat:
 		return types.NewPointer(types.Universe.Lookup("float64").Type()), nil, nil
-	case schema.TypeInt:
-		return types.NewPointer(types.Universe.Lookup("int64").Type()), nil, nil
-	case schema.TypeString:
+	case tfjson.TypeString:
 		return types.NewPointer(types.Universe.Lookup("string").Type()), nil, nil
-	case schema.TypeMap, schema.TypeList, schema.TypeSet:
+	case tfjson.TypeMap, tfjson.TypeList, tfjson.TypeSet, tfjson.TypeObject:
 		names = append(names, f.Name.Camel)
-		_, hasNonPrimitiveElement := f.Schema.Elem.(*schema.Resource)
-		isNonPrimitiveMap := (f.Schema.Type == schema.TypeMap) && hasNonPrimitiveElement
-		if (f.Schema.Type != schema.TypeMap && !cfg.SchemaElementOptions.EmbeddedObject(cpath)) || isNonPrimitiveMap {
+		_, hasNonPrimitiveElement := f.Schema.Elem.(*tfjson.Resource)
+		isNonPrimitiveMap := (f.Schema.Type == tfjson.TypeMap) && hasNonPrimitiveElement
+		if (f.Schema.Type != tfjson.TypeMap && !cfg.SchemaElementOptions.EmbeddedObject(cpath)) || isNonPrimitiveMap {
 			// We don't want to have a many-to-many relationship in case of a Map, since we use SecretReference as
 			// the type of XP field. In this case, we want to have a one-to-many relationship which is handled at
 			// runtime in the controller.
-			f.TerraformPaths = append(f.TerraformPaths, wildcard)
-			f.CRDPaths = append(f.CRDPaths, wildcard)
+			if f.Schema.Type != tfjson.TypeObject {
+				f.TerraformPaths = append(f.TerraformPaths, wildcard)
+				f.CRDPaths = append(f.CRDPaths, wildcard)
+			}
 		}
 		var elemType types.Type
 		var initElemType types.Type
 		// var isNestedMap bool
 		switch et := f.Schema.Elem.(type) {
-		case schema.ValueType:
+		case tfjson.ValueType:
 			switch et {
-			case schema.TypeBool:
+			case tfjson.TypeBool:
 				elemType = types.Universe.Lookup("bool").Type()
-			case schema.TypeFloat:
+			case tfjson.TypeFloat:
 				elemType = types.Universe.Lookup("float64").Type()
-			case schema.TypeInt:
-				elemType = types.Universe.Lookup("int64").Type()
-			case schema.TypeString:
+			case tfjson.TypeString:
 				elemType = types.Universe.Lookup("string").Type()
-			case schema.TypeMap, schema.TypeList, schema.TypeSet, schema.TypeInvalid:
+			case tfjson.TypeMap, tfjson.TypeList, tfjson.TypeSet, tfjson.TypeInvalid:
 				return nil, nil, errors.Errorf("element type of %s is basic but not one of known basic types", traverser.FieldPath(names))
 			default:
 				return nil, nil, errors.Errorf("element type of %s is basic but not one of known basic types: %v", traverser.FieldPath(names), et)
 			}
 			initElemType = elemType
-		case *schema.Schema:
+		case *tfjson.Schema:
 			newf, err := NewField(g, cfg, r, et, f.Name.Snake, f.TerraformPaths, f.CRDPaths, names, false)
 			if err != nil {
 				return nil, nil, err
 			}
 			elemType = newf.FieldType
 			initElemType = elemType
-		case *schema.Resource:
+		case *tfjson.Resource:
 			var asBlocksMode bool
 
 			// TODO(muvaf): We skip the other type once we choose one of param
 			// or obs types. This might cause some fields to be completely omitted.
-			if f.Schema.ConfigMode == schema.SchemaConfigModeAttr {
+			if f.Schema.ConfigMode == tfjson.ConfigModeAttr {
 				asBlocksMode = true
 			}
 
-			//if _, ok := et.Schema["__mapkey"]; ok {
+			// if _, ok := et.Schema["__mapkey"]; ok {
 			//	isNestedMap = true
 			//	delete(et.Schema, "__mapkey")
-			//}
+			// }
 
 			paramType, obsType, initType, err := g.buildResource(et, cfg, f.TerraformPaths, f.CRDPaths, asBlocksMode, names...)
 			if err != nil {
@@ -275,7 +273,7 @@ func (g *Builder) buildSchema(f *Field, cfg *config.Resource, names []string, cp
 			initElemType = initType
 
 			switch {
-			case IsObservation(f.Schema):
+			case f.Schema.Observation:
 				if obsType == nil {
 					return nil, nil, errors.Errorf("element type of %s is computed but the underlying schema does not return observation type", traverser.FieldPath(names))
 				}
@@ -307,8 +305,10 @@ func (g *Builder) buildSchema(f *Field, cfg *config.Resource, names []string, cp
 					var t types.Type
 					if cfg.SchemaElementOptions.EmbeddedObject(cpath) {
 						t = types.NewPointer(obsType)
-					} else if f.Schema.Type == schema.TypeMap {
+					} else if f.Schema.Type == tfjson.TypeMap {
 						t = types.NewMap(types.Universe.Lookup("string").Type(), obsType)
+					} else if f.Schema.Type == tfjson.TypeObject {
+						t = types.NewPointer(obsType)
 					} else {
 						t = types.NewSlice(obsType)
 					}
@@ -322,23 +322,25 @@ func (g *Builder) buildSchema(f *Field, cfg *config.Resource, names []string, cp
 			elemType = types.Universe.Lookup("string").Type()
 			initElemType = elemType
 		default:
-			return nil, nil, errors.Errorf("element type of %s should be either schema.Resource or schema.Schema", traverser.FieldPath(names))
+			return nil, nil, errors.Errorf("element type of %s should be either tfjson.Resource or tfjson.Schema", traverser.FieldPath(names))
 		}
 
 		// if the singleton list is to be replaced by an embedded object
 		if cfg.SchemaElementOptions.EmbeddedObject(cpath) {
 			return types.NewPointer(elemType), types.NewPointer(initElemType), nil
 		}
-		//if isNestedMap {
+		// if isNestedMap {
 		//	return types.NewMap(types.Universe.Lookup("string").Type(), elemType), types.NewMap(types.Universe.Lookup("string").Type(), initElemType), nil
-		//}
+		// }
 		// NOTE(muvaf): Maps and slices are already pointers, so we don't need to
 		// wrap them even if they are optional.
-		if f.Schema.Type == schema.TypeMap {
+		if f.Schema.Type == tfjson.TypeMap {
 			return types.NewMap(types.Universe.Lookup("string").Type(), elemType), types.NewMap(types.Universe.Lookup("string").Type(), initElemType), nil
+		} else if f.Schema.Type == tfjson.TypeObject {
+			return types.NewPointer(elemType), types.NewPointer(initElemType), nil
 		}
 		return types.NewSlice(elemType), types.NewSlice(initElemType), nil
-	case schema.TypeInvalid:
+	case tfjson.TypeInvalid:
 		return nil, nil, errors.Errorf("invalid schema type %s", f.Schema.Type.String())
 	default:
 		return nil, nil, errors.Errorf("unexpected schema type %s", f.Schema.Type.String())
@@ -397,7 +399,7 @@ func newTopLevelRequiredParam(path string, includeInit bool) *topLevelRequiredPa
 }
 
 func (r *resource) addParameterField(f *Field, field *types.Var) {
-	requiredBySchema := !f.Schema.Optional || f.Required
+	requiredBySchema := f.Schema.Required || f.Required
 	// Note(turkenh): We are collecting the top level required parameters that
 	// are not identifier fields. This is for generating CEL validation rules for
 	// those parameters and not to require them if the management policy is set
@@ -511,17 +513,7 @@ func generateTypeName(suffix string, pkg *types.Package, overrideFieldNames map[
 	return "", errors.Errorf("could not generate a unique name for %s", n)
 }
 
-// IsObservation returns whether the specified Schema belongs to an observed
-// attribute, i.e., whether it's a required computed field.
-func IsObservation(s *schema.Schema) bool {
-	// NOTE(muvaf): If a field is not optional but computed, then it's
-	// definitely an observation field.
-	// If it's optional but also computed, then it means the field has a server
-	// side default but user can change it, so it needs to go to parameters.
-	return s.Computed && !s.Optional
-}
-
-func sortedKeys(m map[string]*schema.Schema) []string {
+func sortedKeys(m map[string]*tfjson.Schema) []string {
 	if len(m) == 0 {
 		return nil
 	}

@@ -299,6 +299,7 @@ func NewProvider(schema []byte, prefix string, modulePath string, metadata []byt
 		rs = v.ResourceSchemas
 		break
 	}
+	upjetResourceMap := conversiontfjson.GetResourceMap(rs)
 	resourceMap := conversiontfjson.GetV2ResourceMap(rs)
 	providerMetadata, err := registry.NewProviderMetadataFromFile(metadata)
 	if err != nil {
@@ -368,7 +369,7 @@ func NewProvider(schema []byte, prefix string, modulePath string, metadata []byt
 			terraformPluginFrameworkResource = resourceFunc()
 		}
 
-		p.Resources[name] = DefaultResource(name, terraformResource, terraformPluginFrameworkResource, providerMetadata.Resources[name], p.DefaultResourceOptions...)
+		p.Resources[name] = DefaultResource(name, terraformResource, terraformPluginFrameworkResource, providerMetadata.Resources[name], upjetResourceMap[name], p.DefaultResourceOptions...)
 		p.Resources[name].useTerraformPluginSDKClient = isTerraformPluginSDK
 		p.Resources[name].useTerraformPluginFrameworkClient = isPluginFrameworkResource
 		// traverse the Terraform resource schema to initialize the upjet Resource

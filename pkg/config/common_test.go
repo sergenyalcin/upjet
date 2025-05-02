@@ -15,6 +15,7 @@ import (
 
 	"github.com/crossplane/upjet/pkg/config/conversion"
 	"github.com/crossplane/upjet/pkg/registry"
+	"github.com/crossplane/upjet/pkg/types/conversion/tfjson"
 )
 
 func TestDefaultResource(t *testing.T) {
@@ -156,11 +157,11 @@ func TestDefaultResource(t *testing.T) {
 
 func TestMoveToStatus(t *testing.T) {
 	type args struct {
-		sch    *schema.Resource
+		sch    *tfjson.Resource
 		fields []string
 	}
 	type want struct {
-		sch *schema.Resource
+		sch *tfjson.Resource
 	}
 
 	cases := map[string]struct {
@@ -171,20 +172,18 @@ func TestMoveToStatus(t *testing.T) {
 		"DoesNotExist": {
 			args: args{
 				fields: []string{"topD"},
-				sch: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"topA": {Type: schema.TypeString},
-						"topB": {Type: schema.TypeInt},
-						"topC": {Type: schema.TypeString, Optional: true},
+				sch: &tfjson.Resource{
+					Schema: map[string]*tfjson.Schema{
+						"topA": {Type: tfjson.TypeString},
+						"topC": {Type: tfjson.TypeString, Required: false},
 					},
 				},
 			},
 			want: want{
-				sch: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"topA": {Type: schema.TypeString},
-						"topB": {Type: schema.TypeInt},
-						"topC": {Type: schema.TypeString, Optional: true},
+				sch: &tfjson.Resource{
+					Schema: map[string]*tfjson.Schema{
+						"topA": {Type: tfjson.TypeString},
+						"topC": {Type: tfjson.TypeString, Required: false},
 					},
 				},
 			},
@@ -192,31 +191,25 @@ func TestMoveToStatus(t *testing.T) {
 		"TopLevelBasicFields": {
 			args: args{
 				fields: []string{"topA", "topB"},
-				sch: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"topA": {Type: schema.TypeString},
-						"topB": {Type: schema.TypeInt},
-						"topC": {Type: schema.TypeString, Optional: true},
+				sch: &tfjson.Resource{
+					Schema: map[string]*tfjson.Schema{
+						"topA": {Type: tfjson.TypeString},
+						"topC": {Type: tfjson.TypeString, Required: false},
 					},
 				},
 			},
 			want: want{
-				sch: &schema.Resource{
-					Schema: map[string]*schema.Schema{
+				sch: &tfjson.Resource{
+					Schema: map[string]*tfjson.Schema{
 						"topA": {
-							Type:     schema.TypeString,
-							Optional: false,
-							Computed: true,
-						},
-						"topB": {
-							Type:     schema.TypeInt,
-							Optional: false,
-							Computed: true,
+							Type:        tfjson.TypeString,
+							Observation: true,
+							Required:    true,
 						},
 						"topC": {
-							Type:     schema.TypeString,
-							Optional: true,
-							Computed: false,
+							Type:        tfjson.TypeString,
+							Observation: true,
+							Required:    true,
 						},
 					},
 				},
@@ -225,25 +218,25 @@ func TestMoveToStatus(t *testing.T) {
 		"ComplexFields": {
 			args: args{
 				fields: []string{"topA"},
-				sch: &schema.Resource{
-					Schema: map[string]*schema.Schema{
+				sch: &tfjson.Resource{
+					Schema: map[string]*tfjson.Schema{
 						"topA": {
-							Type: schema.TypeMap,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
+							Type: tfjson.TypeMap,
+							Elem: &tfjson.Resource{
+								Schema: map[string]*tfjson.Schema{
 									"leafA": {
-										Type: schema.TypeMap,
-										Elem: &schema.Resource{
-											Schema: map[string]*schema.Schema{
+										Type: tfjson.TypeMap,
+										Elem: &tfjson.Resource{
+											Schema: map[string]*tfjson.Schema{
 												"leafB": {
-													Type:     schema.TypeString,
-													Computed: false,
-													Optional: true,
+													Type:        tfjson.TypeString,
+													Required:    false,
+													Observation: false,
 												},
 												"leafC": {
-													Type:     schema.TypeString,
-													Computed: false,
-													Optional: true,
+													Type:        tfjson.TypeString,
+													Required:    false,
+													Observation: false,
 												},
 											},
 										},
@@ -251,34 +244,34 @@ func TestMoveToStatus(t *testing.T) {
 								},
 							},
 						},
-						"topB": {Type: schema.TypeString},
+						"topB": {Type: tfjson.TypeString},
 					},
 				},
 			},
 			want: want{
-				sch: &schema.Resource{
-					Schema: map[string]*schema.Schema{
+				sch: &tfjson.Resource{
+					Schema: map[string]*tfjson.Schema{
 						"topA": {
-							Type:     schema.TypeMap,
-							Computed: true,
-							Optional: false,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
+							Type:        tfjson.TypeMap,
+							Observation: true,
+							Required:    true,
+							Elem: &tfjson.Resource{
+								Schema: map[string]*tfjson.Schema{
 									"leafA": {
-										Type:     schema.TypeMap,
-										Computed: true,
-										Optional: false,
-										Elem: &schema.Resource{
-											Schema: map[string]*schema.Schema{
+										Type:        tfjson.TypeMap,
+										Observation: true,
+										Required:    true,
+										Elem: &tfjson.Resource{
+											Schema: map[string]*tfjson.Schema{
 												"leafB": {
-													Type:     schema.TypeString,
-													Computed: true,
-													Optional: false,
+													Type:        tfjson.TypeString,
+													Observation: true,
+													Required:    true,
 												},
 												"leafC": {
-													Type:     schema.TypeString,
-													Computed: true,
-													Optional: false,
+													Type:        tfjson.TypeString,
+													Observation: true,
+													Required:    true,
 												},
 											},
 										},
@@ -286,7 +279,7 @@ func TestMoveToStatus(t *testing.T) {
 								},
 							},
 						},
-						"topB": {Type: schema.TypeString},
+						"topB": {Type: tfjson.TypeString},
 					},
 				},
 			},
@@ -305,11 +298,11 @@ func TestMoveToStatus(t *testing.T) {
 
 func TestMarkAsRequired(t *testing.T) {
 	type args struct {
-		sch    *schema.Resource
+		sch    *tfjson.Resource
 		fields []string
 	}
 	type want struct {
-		sch *schema.Resource
+		sch *tfjson.Resource
 	}
 
 	cases := map[string]struct {
@@ -320,20 +313,18 @@ func TestMarkAsRequired(t *testing.T) {
 		"DoesNotExist": {
 			args: args{
 				fields: []string{"topD"},
-				sch: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"topA": {Type: schema.TypeString},
-						"topB": {Type: schema.TypeInt, Computed: true},
-						"topC": {Type: schema.TypeString, Optional: true},
+				sch: &tfjson.Resource{
+					Schema: map[string]*tfjson.Schema{
+						"topA": {Type: tfjson.TypeString},
+						"topC": {Type: tfjson.TypeString, Required: false},
 					},
 				},
 			},
 			want: want{
-				sch: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"topA": {Type: schema.TypeString},
-						"topB": {Type: schema.TypeInt, Computed: true},
-						"topC": {Type: schema.TypeString, Optional: true},
+				sch: &tfjson.Resource{
+					Schema: map[string]*tfjson.Schema{
+						"topA": {Type: tfjson.TypeString},
+						"topC": {Type: tfjson.TypeString, Required: false},
 					},
 				},
 			},
@@ -341,27 +332,25 @@ func TestMarkAsRequired(t *testing.T) {
 		"TopLevelBasicFields": {
 			args: args{
 				fields: []string{"topB", "topC"},
-				sch: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"topA": {Type: schema.TypeString},
-						"topB": {Type: schema.TypeInt, Computed: true},
-						"topC": {Type: schema.TypeString, Optional: true},
+				sch: &tfjson.Resource{
+					Schema: map[string]*tfjson.Schema{
+						"topA": {Type: tfjson.TypeString},
+						"topC": {Type: tfjson.TypeString, Required: false},
 					},
 				},
 			},
 			want: want{
-				sch: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"topA": {Type: schema.TypeString},
+				sch: &tfjson.Resource{
+					Schema: map[string]*tfjson.Schema{
+						"topA": {Type: tfjson.TypeString},
 						"topB": {
-							Type:     schema.TypeInt,
-							Optional: false,
-							Computed: false,
+							Observation: false,
+							Required:    true,
 						},
 						"topC": {
-							Type:     schema.TypeString,
-							Optional: false,
-							Computed: false,
+							Type:        tfjson.TypeString,
+							Observation: false,
+							Required:    true,
 						},
 					},
 				},
@@ -370,46 +359,46 @@ func TestMarkAsRequired(t *testing.T) {
 		"ComplexFields": {
 			args: args{
 				fields: []string{"topA.leafA", "topA.leafA.leafC"},
-				sch: &schema.Resource{
-					Schema: map[string]*schema.Schema{
+				sch: &tfjson.Resource{
+					Schema: map[string]*tfjson.Schema{
 						"topA": {
-							Type: schema.TypeMap,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
+							Type: tfjson.TypeMap,
+							Elem: &tfjson.Resource{
+								Schema: map[string]*tfjson.Schema{
 									"leafA": {
-										Type: schema.TypeMap,
-										Elem: &schema.Resource{
-											Schema: map[string]*schema.Schema{
-												"leafB": {Type: schema.TypeString},
-												"leafC": {Type: schema.TypeString},
+										Type: tfjson.TypeMap,
+										Elem: &tfjson.Resource{
+											Schema: map[string]*tfjson.Schema{
+												"leafB": {Type: tfjson.TypeString},
+												"leafC": {Type: tfjson.TypeString},
 											},
 										},
 									},
 								},
 							},
 						},
-						"topB": {Type: schema.TypeString},
+						"topB": {Type: tfjson.TypeString},
 					},
 				},
 			},
 			want: want{
-				sch: &schema.Resource{
-					Schema: map[string]*schema.Schema{
+				sch: &tfjson.Resource{
+					Schema: map[string]*tfjson.Schema{
 						"topA": {
-							Type: schema.TypeMap,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
+							Type: tfjson.TypeMap,
+							Elem: &tfjson.Resource{
+								Schema: map[string]*tfjson.Schema{
 									"leafA": {
-										Type:     schema.TypeMap,
-										Computed: false,
-										Optional: false,
-										Elem: &schema.Resource{
-											Schema: map[string]*schema.Schema{
-												"leafB": {Type: schema.TypeString},
+										Type:        tfjson.TypeMap,
+										Observation: false,
+										Required:    true,
+										Elem: &tfjson.Resource{
+											Schema: map[string]*tfjson.Schema{
+												"leafB": {Type: tfjson.TypeString},
 												"leafC": {
-													Type:     schema.TypeString,
-													Computed: false,
-													Optional: false,
+													Type:        tfjson.TypeString,
+													Observation: false,
+													Required:    true,
 												},
 											},
 										},
@@ -417,7 +406,7 @@ func TestMarkAsRequired(t *testing.T) {
 								},
 							},
 						},
-						"topB": {Type: schema.TypeString},
+						"topB": {Type: tfjson.TypeString},
 					},
 				},
 			},
@@ -436,25 +425,25 @@ func TestMarkAsRequired(t *testing.T) {
 
 func TestGetSchema(t *testing.T) {
 	type args struct {
-		sch       *schema.Resource
+		sch       *tfjson.Resource
 		fieldpath string
 	}
 	type want struct {
-		sch *schema.Schema
+		sch *tfjson.Schema
 	}
-	schLeaf := &schema.Schema{
-		Type: schema.TypeString,
+	schLeaf := &tfjson.Schema{
+		Type: tfjson.TypeString,
 	}
-	schA := &schema.Schema{
-		Type: schema.TypeMap,
-		Elem: &schema.Resource{
-			Schema: map[string]*schema.Schema{
+	schA := &tfjson.Schema{
+		Type: tfjson.TypeMap,
+		Elem: &tfjson.Resource{
+			Schema: map[string]*tfjson.Schema{
 				"fieldA": schLeaf,
 			},
 		},
 	}
-	res := &schema.Resource{
-		Schema: map[string]*schema.Schema{
+	res := &tfjson.Resource{
+		Schema: map[string]*tfjson.Schema{
 			"topA": schA,
 		},
 	}
@@ -502,9 +491,9 @@ func TestGetSchema(t *testing.T) {
 		"TopFieldIsNotMap": {
 			args: args{
 				fieldpath: "topA.topB",
-				sch: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"topA": {Type: schema.TypeString},
+				sch: &tfjson.Resource{
+					Schema: map[string]*tfjson.Schema{
+						"topA": {Type: tfjson.TypeString},
 					},
 				},
 			},
@@ -515,13 +504,13 @@ func TestGetSchema(t *testing.T) {
 		"MiddleFieldIsNotResource": {
 			args: args{
 				fieldpath: "topA.topB.topC",
-				sch: &schema.Resource{
-					Schema: map[string]*schema.Schema{
+				sch: &tfjson.Resource{
+					Schema: map[string]*tfjson.Schema{
 						"topA": {
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
+							Elem: &tfjson.Resource{
+								Schema: map[string]*tfjson.Schema{
 									"topB": {
-										Elem: &schema.Schema{},
+										Elem: &tfjson.Schema{},
 									},
 								},
 							},
@@ -547,11 +536,11 @@ func TestGetSchema(t *testing.T) {
 
 func TestManipulateAllFieldsInSchema(t *testing.T) {
 	type args struct {
-		sch *schema.Resource
-		op  func(sch *schema.Schema)
+		sch *tfjson.Resource
+		op  func(sch *tfjson.Schema)
 	}
 	type want struct {
-		sch *schema.Resource
+		sch *tfjson.Resource
 	}
 
 	cases := map[string]struct {
@@ -561,25 +550,25 @@ func TestManipulateAllFieldsInSchema(t *testing.T) {
 	}{
 		"SetEmptyDescription": {
 			args: args{
-				sch: &schema.Resource{
-					Schema: map[string]*schema.Schema{
+				sch: &tfjson.Resource{
+					Schema: map[string]*tfjson.Schema{
 						"topA": {
 							Description: "topADescription",
-							Type:        schema.TypeMap,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
+							Type:        tfjson.TypeMap,
+							Elem: &tfjson.Resource{
+								Schema: map[string]*tfjson.Schema{
 									"leafA": {
 										Description: "leafADescription",
-										Type:        schema.TypeMap,
-										Elem: &schema.Resource{
-											Schema: map[string]*schema.Schema{
+										Type:        tfjson.TypeMap,
+										Elem: &tfjson.Resource{
+											Schema: map[string]*tfjson.Schema{
 												"leafB": {
 													Description: "",
-													Type:        schema.TypeString,
+													Type:        tfjson.TypeString,
 												},
 												"leafC": {
 													Description: "leafCDescription",
-													Type:        schema.TypeString,
+													Type:        tfjson.TypeString,
 												},
 											},
 										},
@@ -587,33 +576,33 @@ func TestManipulateAllFieldsInSchema(t *testing.T) {
 								},
 							},
 						},
-						"topB": {Type: schema.TypeString},
+						"topB": {Type: tfjson.TypeString},
 					},
 				},
-				op: func(sch *schema.Schema) {
+				op: func(sch *tfjson.Schema) {
 					sch.Description = ""
 				},
 			},
 			want: want{
-				sch: &schema.Resource{
-					Schema: map[string]*schema.Schema{
+				sch: &tfjson.Resource{
+					Schema: map[string]*tfjson.Schema{
 						"topA": {
 							Description: "",
-							Type:        schema.TypeMap,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
+							Type:        tfjson.TypeMap,
+							Elem: &tfjson.Resource{
+								Schema: map[string]*tfjson.Schema{
 									"leafA": {
 										Description: "",
-										Type:        schema.TypeMap,
-										Elem: &schema.Resource{
-											Schema: map[string]*schema.Schema{
+										Type:        tfjson.TypeMap,
+										Elem: &tfjson.Resource{
+											Schema: map[string]*tfjson.Schema{
 												"leafB": {
 													Description: "",
-													Type:        schema.TypeString,
+													Type:        tfjson.TypeString,
 												},
 												"leafC": {
 													Description: "",
-													Type:        schema.TypeString,
+													Type:        tfjson.TypeString,
 												},
 											},
 										},
@@ -621,7 +610,7 @@ func TestManipulateAllFieldsInSchema(t *testing.T) {
 								},
 							},
 						},
-						"topB": {Type: schema.TypeString, Description: ""},
+						"topB": {Type: tfjson.TypeString, Description: ""},
 					},
 				},
 			},

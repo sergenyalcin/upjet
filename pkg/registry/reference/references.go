@@ -12,7 +12,6 @@ import (
 
 	"github.com/crossplane/upjet/pkg/config"
 	"github.com/crossplane/upjet/pkg/registry"
-	"github.com/crossplane/upjet/pkg/types"
 )
 
 const (
@@ -46,11 +45,11 @@ func getExtractorFuncPath(r *config.Resource, sourceAttr string) string {
 				return ""
 			}
 		}
-		s, ok := r.TerraformResource.Schema[sourceAttr]
+		s, ok := r.UpjetResource.Schema[sourceAttr]
 		if !ok {
 			return ""
 		}
-		return fmt.Sprintf(fmtExtractParamFuncPath, sourceAttr, types.IsObservation(s))
+		return fmt.Sprintf(fmtExtractParamFuncPath, sourceAttr, s.Observation)
 	}
 }
 

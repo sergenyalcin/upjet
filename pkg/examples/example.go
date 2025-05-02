@@ -16,14 +16,13 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	xpmeta "github.com/crossplane/crossplane-runtime/pkg/meta"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/crossplane/upjet/pkg/types/conversion/tfjson"
 	"github.com/pkg/errors"
 	"sigs.k8s.io/yaml"
 
 	"github.com/crossplane/upjet/pkg/config"
 	"github.com/crossplane/upjet/pkg/registry/reference"
 	"github.com/crossplane/upjet/pkg/resource/json"
-	tjtypes "github.com/crossplane/upjet/pkg/types"
 	"github.com/crossplane/upjet/pkg/types/name"
 )
 
@@ -199,11 +198,11 @@ func getHierarchicalName(prefix, name string) string {
 }
 
 func isStatus(r *config.Resource, attr string) bool {
-	s := config.GetSchema(r.TerraformResource, attr)
+	s := config.GetSchema(r.UpjetResource, attr)
 	if s == nil {
 		return false
 	}
-	return tjtypes.IsObservation(s)
+	return s.Observation
 }
 
 func transformFields(r *config.Resource, params map[string]any, omittedFields []string, namePrefix string) { // nolint:gocyclo
@@ -239,7 +238,7 @@ func transformFields(r *config.Resource, params map[string]any, omittedFields []
 
 	for n, v := range params {
 		fieldPath := getHierarchicalName(namePrefix, n)
-		sch := config.GetSchema(r.TerraformResource, fieldPath)
+		sch := config.GetSchema(r.UpjetResource, fieldPath)
 		if sch == nil {
 			continue
 		}
@@ -258,7 +257,7 @@ func transformFields(r *config.Resource, params map[string]any, omittedFields []
 		case r.References[fieldPath] != config.Reference{}:
 			switch v.(type) {
 			case []any:
-				l := sch.Type == schema.TypeList || sch.Type == schema.TypeSet
+				l := sch.Type == tfjson.TypeList || sch.Type == tfjson.TypeSet
 				ref := name.ReferenceFieldName(fn, l, r.References[fieldPath].RefFieldName)
 				params[ref.LowerCamelComputed] = getNameRefField(v)
 			default:

@@ -12,6 +12,7 @@ import (
 
 	"github.com/crossplane/upjet/pkg/config/conversion"
 	"github.com/crossplane/upjet/pkg/registry"
+	"github.com/crossplane/upjet/pkg/types/conversion/tfjson"
 	tjname "github.com/crossplane/upjet/pkg/types/name"
 )
 
@@ -58,7 +59,7 @@ type ResourceOption func(*Resource)
 
 // DefaultResource keeps an initial default configuration for all resources of a
 // provider.
-func DefaultResource(name string, terraformSchema *schema.Resource, terraformPluginFrameworkResource fwresource.Resource, terraformRegistry *registry.Resource, opts ...ResourceOption) *Resource {
+func DefaultResource(name string, terraformSchema *schema.Resource, terraformPluginFrameworkResource fwresource.Resource, terraformRegistry *registry.Resource, upjetResource *tfjson.Resource, opts ...ResourceOption) *Resource {
 	words := strings.Split(name, "_")
 	// As group name we default to the second element if resource name
 	// has at least 3 elements, otherwise, we took the first element as
@@ -82,6 +83,7 @@ func DefaultResource(name string, terraformSchema *schema.Resource, terraformPlu
 		Name:                             name,
 		TerraformResource:                terraformSchema,
 		TerraformPluginFrameworkResource: terraformPluginFrameworkResource,
+		UpjetResource:                    upjetResource,
 		MetaResource:                     terraformRegistry,
 		ShortGroup:                       group,
 		Kind:                             kind,
@@ -106,17 +108,16 @@ func DefaultResource(name string, terraformSchema *schema.Resource, terraformPlu
 // a whole. It's used mostly in cases where there is a field that is
 // represented as a separate CRD, hence you'd like to remove that field from
 // spec.
-func MoveToStatus(sch *schema.Resource, fieldpaths ...string) {
+func MoveToStatus(sch *tfjson.Resource, fieldpaths ...string) {
 	for _, f := range fieldpaths {
 		s := GetSchema(sch, f)
 		if s == nil {
 			return
 		}
-		s.Optional = false
-		s.Computed = true
+		s.Observation = true
 
 		// We need to move all nodes of that field to status.
-		if el, ok := s.Elem.(*schema.Resource); ok {
+		if el, ok := s.Elem.(*tfjson.Resource); ok {
 			l := make([]string, len(el.Schema))
 			i := 0
 			for fi := range el.Schema {
@@ -140,18 +141,17 @@ func (r *Resource) MarkAsRequired(fieldpaths ...string) {
 // schemas.
 // Deprecated: Use Resource.MarkAsRequired instead.
 // This function will be removed in future versions.
-func MarkAsRequired(sch *schema.Resource, fieldpaths ...string) {
+func MarkAsRequired(sch *tfjson.Resource, fieldpaths ...string) {
 	for _, fp := range fieldpaths {
 		if s := GetSchema(sch, fp); s != nil {
-			s.Computed = false
-			s.Optional = false
+			s.Required = true
 		}
 	}
 }
 
 // GetSchema returns the schema of the field whose fieldpath is given.
 // Returns nil if Schema is not found at the specified path.
-func GetSchema(sch *schema.Resource, fieldpath string) *schema.Schema {
+func GetSchema(sch *tfjson.Resource, fieldpath string) *tfjson.Schema {
 	current := sch
 	fields := strings.Split(fieldpath, ".")
 	final := fields[len(fields)-1]
@@ -164,7 +164,7 @@ func GetSchema(sch *schema.Resource, fieldpath string) *schema.Schema {
 		if s.Elem == nil {
 			return nil
 		}
-		res, rok := s.Elem.(*schema.Resource)
+		res, rok := s.Elem.(*tfjson.Resource)
 		if !rok {
 			return nil
 		}
@@ -179,13 +179,13 @@ func GetSchema(sch *schema.Resource, fieldpath string) *schema.Schema {
 
 // ManipulateEveryField manipulates all fields in the schema by
 // input function.
-func ManipulateEveryField(r *schema.Resource, op func(sch *schema.Schema)) {
+func ManipulateEveryField(r *tfjson.Resource, op func(sch *tfjson.Schema)) {
 	for _, s := range r.Schema {
 		if s == nil {
 			return
 		}
 		op(s)
-		if el, ok := s.Elem.(*schema.Resource); ok {
+		if el, ok := s.Elem.(*tfjson.Resource); ok {
 			ManipulateEveryField(el, op)
 		}
 	}

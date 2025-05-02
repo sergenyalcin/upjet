@@ -25,6 +25,7 @@ import (
 
 	"github.com/crossplane/upjet/pkg/config/conversion"
 	"github.com/crossplane/upjet/pkg/registry"
+	"github.com/crossplane/upjet/pkg/types/conversion/tfjson"
 )
 
 // A ListType is a type of list.
@@ -416,6 +417,8 @@ type Resource struct {
 	// TerraformPluginFrameworkResource is the Terraform representation
 	// of the TF Plugin Framework based resource
 	TerraformPluginFrameworkResource fwresource.Resource
+
+	UpjetResource *tfjson.Resource
 
 	// ShortGroup is the short name of the API group of this CRD. The full
 	// CRD API group is calculated by adding the group suffix of the provider.

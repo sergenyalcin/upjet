@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	twtypes "github.com/muvaf/typewriter/pkg/types"
 	"github.com/muvaf/typewriter/pkg/wrapper"
 	"github.com/pkg/errors"
@@ -21,6 +20,7 @@ import (
 	"github.com/crossplane/upjet/pkg/config"
 	"github.com/crossplane/upjet/pkg/pipeline/templates"
 	tjtypes "github.com/crossplane/upjet/pkg/types"
+	"github.com/crossplane/upjet/pkg/types/conversion/tfjson"
 )
 
 const (
@@ -60,10 +60,10 @@ func (cg *CRDGenerator) Generate(cfg *config.Resource) (string, error) {
 		wrapper.WithHeaderPath(cg.LicenseHeaderPath),
 	)
 
-	deleteOmittedFields(cfg.TerraformResource.Schema, cfg.ExternalName.OmittedFields)
-	cfg.TerraformResource.Schema["id"] = &schema.Schema{
-		Type:     schema.TypeString,
-		Computed: true,
+	deleteOmittedFields(cfg.UpjetResource.Schema, cfg.ExternalName.OmittedFields)
+	cfg.UpjetResource.Schema["id"] = &tfjson.Schema{
+		Type:        tfjson.TypeString,
+		Observation: true,
 	}
 
 	gen, err := tjtypes.NewBuilder(cg.pkg).Build(cfg)
@@ -109,7 +109,7 @@ func (cg *CRDGenerator) Generate(cfg *config.Resource) (string, error) {
 	return gen.ForProviderType.Obj().Name(), errors.Wrap(file.Write(filePath, vars, os.ModePerm), "cannot write crd file")
 }
 
-func deleteOmittedFields(sch map[string]*schema.Schema, omittedFields []string) {
+func deleteOmittedFields(sch map[string]*tfjson.Schema, omittedFields []string) {
 	for _, omit := range omittedFields {
 		fields := strings.Split(omit, ".")
 		current := sch
@@ -118,7 +118,7 @@ func deleteOmittedFields(sch map[string]*schema.Schema, omittedFields []string) 
 				delete(current, f)
 				break
 			}
-			current = current[f].Elem.(*schema.Resource).Schema
+			current = current[f].Elem.(*tfjson.Resource).Schema
 		}
 	}
 }
