@@ -147,7 +147,7 @@ func TestDefaultResource(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			r := DefaultResource(tc.args.name, tc.args.sch, tc.args.frameworkResource, tc.args.reg, tc.args.opts...)
+			r := DefaultResource(tc.args.name, tc.args.sch, tc.args.frameworkResource, tc.args.reg, nil, tc.args.opts...)
 			if diff := cmp.Diff(tc.want, r, ignoreUnexported...); diff != "" {
 				t.Errorf("\n%s\nDefaultResource(...): -want, +got:\n%s", tc.reason, diff)
 			}
@@ -193,8 +193,8 @@ func TestMoveToStatus(t *testing.T) {
 				fields: []string{"topA", "topB"},
 				sch: &tfjson.Resource{
 					Schema: map[string]*tfjson.Schema{
-						"topA": {Type: tfjson.TypeString},
-						"topC": {Type: tfjson.TypeString, Required: false},
+						"topA": {Type: tfjson.TypeString, Observation: false},
+						"topC": {Type: tfjson.TypeString, Observation: false},
 					},
 				},
 			},
@@ -204,12 +204,10 @@ func TestMoveToStatus(t *testing.T) {
 						"topA": {
 							Type:        tfjson.TypeString,
 							Observation: true,
-							Required:    true,
 						},
 						"topC": {
 							Type:        tfjson.TypeString,
-							Observation: true,
-							Required:    true,
+							Observation: false,
 						},
 					},
 				},
@@ -230,12 +228,10 @@ func TestMoveToStatus(t *testing.T) {
 											Schema: map[string]*tfjson.Schema{
 												"leafB": {
 													Type:        tfjson.TypeString,
-													Required:    false,
 													Observation: false,
 												},
 												"leafC": {
 													Type:        tfjson.TypeString,
-													Required:    false,
 													Observation: false,
 												},
 											},
@@ -254,24 +250,20 @@ func TestMoveToStatus(t *testing.T) {
 						"topA": {
 							Type:        tfjson.TypeMap,
 							Observation: true,
-							Required:    true,
 							Elem: &tfjson.Resource{
 								Schema: map[string]*tfjson.Schema{
 									"leafA": {
 										Type:        tfjson.TypeMap,
 										Observation: true,
-										Required:    true,
 										Elem: &tfjson.Resource{
 											Schema: map[string]*tfjson.Schema{
 												"leafB": {
 													Type:        tfjson.TypeString,
 													Observation: true,
-													Required:    true,
 												},
 												"leafC": {
 													Type:        tfjson.TypeString,
 													Observation: true,
-													Required:    true,
 												},
 											},
 										},
@@ -335,7 +327,7 @@ func TestMarkAsRequired(t *testing.T) {
 				sch: &tfjson.Resource{
 					Schema: map[string]*tfjson.Schema{
 						"topA": {Type: tfjson.TypeString},
-						"topC": {Type: tfjson.TypeString, Required: false},
+						"topC": {Type: tfjson.TypeString},
 					},
 				},
 			},
@@ -343,15 +335,7 @@ func TestMarkAsRequired(t *testing.T) {
 				sch: &tfjson.Resource{
 					Schema: map[string]*tfjson.Schema{
 						"topA": {Type: tfjson.TypeString},
-						"topB": {
-							Observation: false,
-							Required:    true,
-						},
-						"topC": {
-							Type:        tfjson.TypeString,
-							Observation: false,
-							Required:    true,
-						},
+						"topC": {Type: tfjson.TypeString, Required: true},
 					},
 				},
 			},

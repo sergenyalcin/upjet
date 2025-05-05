@@ -7,7 +7,7 @@ import (
 )
 
 type Resource struct {
-	Version            int                `json:"version"`
+	SchemaVersion      int                `json:"schema_version"`
 	Schema             map[string]*Schema `json:"schema"`
 	Description        string             `json:"description"`
 	DeprecationMessage string             `json:"deprecation_message"`
@@ -57,7 +57,7 @@ func GetResourceMap(resourceSchemas map[string]*tfjson.Schema) map[string]*Resou
 }
 
 func resourceFromTFJSONSchema(s *tfjson.Schema) *Resource {
-	r := &Resource{Version: int(s.Version)} //nolint:gosec
+	r := &Resource{SchemaVersion: int(s.Version)} //nolint:gosec
 	if s.Block == nil {
 		return r
 	}
@@ -246,7 +246,7 @@ func schemaTypeFromCtyType(typ cty.Type, sch *Schema) error {
 		sch.Type = collectionToSchemaType(typ)
 		sch.Elem = elemType
 	case typ.IsTupleType():
-		return errors.New("cannot convert cty TupleType to schema v2 type")
+		return errors.New("cannot convert cty TupleType to internal representation")
 	case typ.IsObjectType():
 		typ.AttributeTypes()
 		res := &Resource{}
@@ -265,7 +265,7 @@ func schemaTypeFromCtyType(typ cty.Type, sch *Schema) error {
 		sch.Type = TypeObject
 		sch.Elem = res
 	case typ.Equals(cty.DynamicPseudoType):
-		return errors.New("cannot convert cty DynamicPseudoType to schema v2 type")
+		return errors.New("cannot convert cty DynamicPseudoType to internal representation")
 	}
 
 	return nil
@@ -297,12 +297,45 @@ func collectionToSchemaType(typ cty.Type) ValueType {
 	return TypeInvalid
 }
 
+// checks whether the given tfjson.SchemaBlockType has any required children.
+// Children which are themselves blocks (nested blocks) are
+// checked recursively.
+func hasBlockRequiredChild(nb *tfjson.SchemaBlockType) bool {
+	if nb.Block == nil {
+		return false
+	}
+	for _, a := range nb.Block.Attributes {
+		if a == nil {
+			continue
+		}
+		if a.Required {
+			return true
+		}
+	}
+	for _, b := range nb.Block.NestedBlocks {
+		if b == nil {
+			continue
+		}
+		if hasBlockRequiredChild(b) {
+			return true
+		}
+	}
+	return false
+}
+
 func isObservation(computed, optional bool) bool {
 	// NOTE(muvaf): If a field is not optional but computed, then it's
 	// definitely an observation field.
 	// If it's optional but also computed, then it means the field has a server
 	// side default but user can change it, so it needs to go to parameters.
 	return computed && !optional
+}
+
+func deprecatedMessage(deprecated bool) string {
+	if deprecated {
+		return "deprecated"
+	}
+	return ""
 }
 
 func (e ValueType) String() string {

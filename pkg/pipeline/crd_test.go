@@ -7,17 +7,17 @@ package pipeline
 import (
 	"testing"
 
+	"github.com/crossplane/upjet/pkg/types/conversion/tfjson"
 	"github.com/google/go-cmp/cmp"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
 func TestDeleteOmittedFields(t *testing.T) {
 	type args struct {
-		sch           map[string]*schema.Schema
+		sch           map[string]*tfjson.Schema
 		omittedFields []string
 	}
 	type want struct {
-		sch map[string]*schema.Schema
+		sch map[string]*tfjson.Schema
 	}
 
 	cases := map[string]struct {
@@ -28,7 +28,7 @@ func TestDeleteOmittedFields(t *testing.T) {
 		"No-op": {
 			reason: "Should not make any changes if fields are not found.",
 			args: args{
-				sch: map[string]*schema.Schema{
+				sch: map[string]*tfjson.Schema{
 					"top_level_a": {},
 					"top_level_b": {},
 				},
@@ -37,7 +37,7 @@ func TestDeleteOmittedFields(t *testing.T) {
 				},
 			},
 			want: want{
-				sch: map[string]*schema.Schema{
+				sch: map[string]*tfjson.Schema{
 					"top_level_a": {},
 					"top_level_b": {},
 				},
@@ -46,7 +46,7 @@ func TestDeleteOmittedFields(t *testing.T) {
 		"OmitTopLevelFields": {
 			reason: "Should be able to omit top level fields.",
 			args: args{
-				sch: map[string]*schema.Schema{
+				sch: map[string]*tfjson.Schema{
 					"top_level_a": {},
 					"top_level_b": {},
 				},
@@ -55,7 +55,7 @@ func TestDeleteOmittedFields(t *testing.T) {
 				},
 			},
 			want: want{
-				sch: map[string]*schema.Schema{
+				sch: map[string]*tfjson.Schema{
 					"top_level_b": {},
 				},
 			},
@@ -63,18 +63,18 @@ func TestDeleteOmittedFields(t *testing.T) {
 		"OmitLeafNode": {
 			reason: "Should be able to omit a leaf field.",
 			args: args{
-				sch: map[string]*schema.Schema{
+				sch: map[string]*tfjson.Schema{
 					"top_level_a": {
-						Elem: &schema.Resource{
-							Schema: map[string]*schema.Schema{
+						Elem: &tfjson.Resource{
+							Schema: map[string]*tfjson.Schema{
 								"down_one": {},
 								"down_two": {},
 							},
 						},
 					},
 					"top_level_b": {
-						Elem: &schema.Resource{
-							Schema: map[string]*schema.Schema{
+						Elem: &tfjson.Resource{
+							Schema: map[string]*tfjson.Schema{
 								"down_another": {},
 							},
 						},
@@ -85,17 +85,17 @@ func TestDeleteOmittedFields(t *testing.T) {
 				},
 			},
 			want: want{
-				sch: map[string]*schema.Schema{
+				sch: map[string]*tfjson.Schema{
 					"top_level_a": {
-						Elem: &schema.Resource{
-							Schema: map[string]*schema.Schema{
+						Elem: &tfjson.Resource{
+							Schema: map[string]*tfjson.Schema{
 								"down_two": {},
 							},
 						},
 					},
 					"top_level_b": {
-						Elem: &schema.Resource{
-							Schema: map[string]*schema.Schema{
+						Elem: &tfjson.Resource{
+							Schema: map[string]*tfjson.Schema{
 								"down_another": {},
 							},
 						},
@@ -106,10 +106,10 @@ func TestDeleteOmittedFields(t *testing.T) {
 		"OmitLeafNodeMultiple": {
 			reason: "Should be able to omit multiple leaf fields.",
 			args: args{
-				sch: map[string]*schema.Schema{
+				sch: map[string]*tfjson.Schema{
 					"top_level_a": {
-						Elem: &schema.Resource{
-							Schema: map[string]*schema.Schema{
+						Elem: &tfjson.Resource{
+							Schema: map[string]*tfjson.Schema{
 								"down_one":        {},
 								"down_one_prefix": {},
 								"down_two":        {},
@@ -117,8 +117,8 @@ func TestDeleteOmittedFields(t *testing.T) {
 						},
 					},
 					"top_level_b": {
-						Elem: &schema.Resource{
-							Schema: map[string]*schema.Schema{
+						Elem: &tfjson.Resource{
+							Schema: map[string]*tfjson.Schema{
 								"down_another": {},
 							},
 						},
@@ -130,17 +130,17 @@ func TestDeleteOmittedFields(t *testing.T) {
 				},
 			},
 			want: want{
-				sch: map[string]*schema.Schema{
+				sch: map[string]*tfjson.Schema{
 					"top_level_a": {
-						Elem: &schema.Resource{
-							Schema: map[string]*schema.Schema{
+						Elem: &tfjson.Resource{
+							Schema: map[string]*tfjson.Schema{
 								"down_two": {},
 							},
 						},
 					},
 					"top_level_b": {
-						Elem: &schema.Resource{
-							Schema: map[string]*schema.Schema{
+						Elem: &tfjson.Resource{
+							Schema: map[string]*tfjson.Schema{
 								"down_another": {},
 							},
 						},

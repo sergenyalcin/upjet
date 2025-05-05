@@ -133,14 +133,14 @@ func TestAddSingletonListConversion(t *testing.T) {
 				tfPath:  "singleton_list",
 				crdPath: "singletonList",
 				r: func() *Resource {
-					r := DefaultResource("test_resource", nil, nil, nil)
+					r := DefaultResource("test_resource", nil, nil, nil, nil)
 					r.AddSingletonListConversion("singleton_list", "singletonList")
 					return r
 				},
 			},
 			want: want{
 				r: func() *Resource {
-					r := DefaultResource("test_resource", nil, nil, nil)
+					r := DefaultResource("test_resource", nil, nil, nil, nil)
 					r.SchemaElementOptions = SchemaElementOptions{}
 					r.SchemaElementOptions["singleton_list"] = &SchemaElementOption{
 						EmbeddedObject: true,
@@ -156,14 +156,14 @@ func TestAddSingletonListConversion(t *testing.T) {
 				tfPath:  "parent[*].singleton_list",
 				crdPath: "parent[*].singletonList",
 				r: func() *Resource {
-					r := DefaultResource("test_resource", nil, nil, nil)
+					r := DefaultResource("test_resource", nil, nil, nil, nil)
 					r.AddSingletonListConversion("parent[*].singleton_list", "parent[*].singletonList")
 					return r
 				},
 			},
 			want: want{
 				r: func() *Resource {
-					r := DefaultResource("test_resource", nil, nil, nil)
+					r := DefaultResource("test_resource", nil, nil, nil, nil)
 					r.SchemaElementOptions = SchemaElementOptions{}
 					r.SchemaElementOptions["parent.singleton_list"] = &SchemaElementOption{
 						EmbeddedObject: true,
@@ -179,14 +179,14 @@ func TestAddSingletonListConversion(t *testing.T) {
 				tfPath:  "parent[0].singleton_list",
 				crdPath: "parent[0].singletonList",
 				r: func() *Resource {
-					r := DefaultResource("test_resource", nil, nil, nil)
+					r := DefaultResource("test_resource", nil, nil, nil, nil)
 					r.AddSingletonListConversion("parent[0].singleton_list", "parent[0].singletonList")
 					return r
 				},
 			},
 			want: want{
 				r: func() *Resource {
-					r := DefaultResource("test_resource", nil, nil, nil)
+					r := DefaultResource("test_resource", nil, nil, nil, nil)
 					r.SchemaElementOptions = SchemaElementOptions{}
 					r.SchemaElementOptions["parent.singleton_list"] = &SchemaElementOption{
 						EmbeddedObject: true,
@@ -231,7 +231,7 @@ func TestRemoveSingletonListConversion(t *testing.T) {
 			args: args{
 				tfPath: "parent[*].singleton_list",
 				r: func() *Resource {
-					r := DefaultResource("test_resource", nil, nil, nil)
+					r := DefaultResource("test_resource", nil, nil, nil, nil)
 					r.AddSingletonListConversion("parent[*].singleton_list", "parent[*].singletonList")
 					return r
 				},
@@ -239,7 +239,7 @@ func TestRemoveSingletonListConversion(t *testing.T) {
 			want: want{
 				removed: true,
 				r: func() *Resource {
-					r := DefaultResource("test_resource", nil, nil, nil)
+					r := DefaultResource("test_resource", nil, nil, nil, nil)
 					return r
 				},
 			},
@@ -249,7 +249,7 @@ func TestRemoveSingletonListConversion(t *testing.T) {
 			args: args{
 				tfPath: "parent[0].singleton_list",
 				r: func() *Resource {
-					r := DefaultResource("test_resource", nil, nil, nil)
+					r := DefaultResource("test_resource", nil, nil, nil, nil)
 					r.AddSingletonListConversion("parent[0].singleton_list", "parent[0].singletonList")
 					return r
 				},
@@ -257,7 +257,7 @@ func TestRemoveSingletonListConversion(t *testing.T) {
 			want: want{
 				removed: true,
 				r: func() *Resource {
-					r := DefaultResource("test_resource", nil, nil, nil)
+					r := DefaultResource("test_resource", nil, nil, nil, nil)
 					return r
 				},
 			},
@@ -267,7 +267,7 @@ func TestRemoveSingletonListConversion(t *testing.T) {
 			args: args{
 				tfPath: "non-existent",
 				r: func() *Resource {
-					r := DefaultResource("test_resource", nil, nil, nil)
+					r := DefaultResource("test_resource", nil, nil, nil, nil)
 					r.AddSingletonListConversion("parent[*].singleton_list", "parent[*].singletonList")
 					return r
 				},
@@ -275,7 +275,7 @@ func TestRemoveSingletonListConversion(t *testing.T) {
 			want: want{
 				removed: false,
 				r: func() *Resource {
-					r := DefaultResource("test_resource", nil, nil, nil)
+					r := DefaultResource("test_resource", nil, nil, nil, nil)
 					r.AddSingletonListConversion("parent[*].singleton_list", "parent[*].singletonList")
 					return r
 				},

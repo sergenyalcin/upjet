@@ -11,8 +11,8 @@ import (
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
+	"github.com/crossplane/upjet/pkg/types/conversion/tfjson"
 	"github.com/google/go-cmp/cmp"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/pkg/errors"
 
 	"github.com/crossplane/upjet/pkg/config"
@@ -226,38 +226,37 @@ func TestBuild(t *testing.T) {
 		"Base_Types": {
 			args: args{
 				cfg: &config.Resource{
-					TerraformResource: &schema.Resource{
-						Schema: map[string]*schema.Schema{
+					UpjetResource: &tfjson.Resource{
+						Schema: map[string]*tfjson.Schema{
 							"name": {
-								Type:     schema.TypeString,
+								Type:     tfjson.TypeString,
 								Required: true,
 							},
 							"id": {
-								Type:     schema.TypeInt,
+								Type:     tfjson.TypeString,
 								Required: true,
 							},
 							"enable": {
-								Type:     schema.TypeBool,
-								Optional: true,
-								Computed: true,
+								Type:     tfjson.TypeBool,
+								Required: false,
 							},
 							"value": {
-								Type:     schema.TypeFloat,
-								Optional: false,
-								Computed: true,
+								Type:        tfjson.TypeFloat,
+								Observation: true,
+								Required:    true,
 							},
 							"config": {
-								Type:     schema.TypeString,
-								Optional: false,
-								Computed: true,
+								Type:        tfjson.TypeString,
+								Observation: true,
+								Required:    true,
 							},
 						},
 					},
 				},
 			},
 			want: want{
-				forProvider: `type example.Parameters struct{Enable *bool "json:\"enable,omitempty\" tf:\"enable,omitempty\""; ID *int64 "json:\"id,omitempty\" tf:\"id,omitempty\""; Name *string "json:\"name,omitempty\" tf:\"name,omitempty\""}`,
-				atProvider:  `type example.Observation struct{Config *string "json:\"config,omitempty\" tf:\"config,omitempty\""; Enable *bool "json:\"enable,omitempty\" tf:\"enable,omitempty\""; ID *int64 "json:\"id,omitempty\" tf:\"id,omitempty\""; Name *string "json:\"name,omitempty\" tf:\"name,omitempty\""; Value *float64 "json:\"value,omitempty\" tf:\"value,omitempty\""}`,
+				forProvider: `type example.Parameters struct{Enable *bool "json:\"enable,omitempty\" tf:\"enable,omitempty\""; ID *string "json:\"id,omitempty\" tf:\"id,omitempty\""; Name *string "json:\"name,omitempty\" tf:\"name,omitempty\""}`,
+				atProvider:  `type example.Observation struct{Config *string "json:\"config,omitempty\" tf:\"config,omitempty\""; Enable *bool "json:\"enable,omitempty\" tf:\"enable,omitempty\""; ID *string "json:\"id,omitempty\" tf:\"id,omitempty\""; Name *string "json:\"name,omitempty\" tf:\"name,omitempty\""; Value *float64 "json:\"value,omitempty\" tf:\"value,omitempty\""}`,
 				validationRules: `
 // +kubebuilder:validation:XValidation:rule="!('*' in self.managementPolicies || 'Create' in self.managementPolicies || 'Update' in self.managementPolicies) || has(self.forProvider.id) || (has(self.initProvider) && has(self.initProvider.id))",message="spec.forProvider.id is a required parameter"
 // +kubebuilder:validation:XValidation:rule="!('*' in self.managementPolicies || 'Create' in self.managementPolicies || 'Update' in self.managementPolicies) || has(self.forProvider.name) || (has(self.initProvider) && has(self.initProvider.name))",message="spec.forProvider.name is a required parameter"`,
@@ -266,26 +265,26 @@ func TestBuild(t *testing.T) {
 		"Resource_Types": {
 			args: args{
 				cfg: &config.Resource{
-					TerraformResource: &schema.Resource{
-						Schema: map[string]*schema.Schema{
+					UpjetResource: &tfjson.Resource{
+						Schema: map[string]*tfjson.Schema{
 							"list": {
-								Type:     schema.TypeList,
+								Type:     tfjson.TypeList,
 								Required: true,
-								Elem: &schema.Schema{
-									Type:     schema.TypeString,
+								Elem: &tfjson.Schema{
+									Type:     tfjson.TypeString,
 									Required: true,
 								},
 							},
 							"resource_in": {
-								Type:     schema.TypeMap,
+								Type:     tfjson.TypeMap,
 								Required: true,
-								Elem:     &schema.Resource{},
+								Elem:     &tfjson.Resource{},
 							},
 							"resource_out": {
-								Type:     schema.TypeMap,
-								Optional: false,
-								Computed: true,
-								Elem:     &schema.Resource{},
+								Type:        tfjson.TypeMap,
+								Observation: true,
+								Required:    false,
+								Elem:        &tfjson.Resource{},
 							},
 						},
 					},
@@ -302,19 +301,19 @@ func TestBuild(t *testing.T) {
 		"Sensitive_Fields": {
 			args: args{
 				cfg: &config.Resource{
-					TerraformResource: &schema.Resource{
-						Schema: map[string]*schema.Schema{
+					UpjetResource: &tfjson.Resource{
+						Schema: map[string]*tfjson.Schema{
 							"key_1": {
-								Type:      schema.TypeString,
-								Optional:  true,
+								Type:      tfjson.TypeString,
+								Required:  false,
 								Sensitive: true,
 							},
 							"key_2": {
-								Type:      schema.TypeString,
+								Type:      tfjson.TypeString,
 								Sensitive: true,
 							},
 							"key_3": {
-								Type:      schema.TypeList,
+								Type:      tfjson.TypeList,
 								Sensitive: true,
 							},
 						},
@@ -322,21 +321,19 @@ func TestBuild(t *testing.T) {
 				},
 			},
 			want: want{
-				forProvider: `type example.Parameters struct{Key1SecretRef *github.com/crossplane/crossplane-runtime/apis/common/v1.SecretKeySelector "json:\"key1SecretRef,omitempty\" tf:\"-\""; Key2SecretRef github.com/crossplane/crossplane-runtime/apis/common/v1.SecretKeySelector "json:\"key2SecretRef\" tf:\"-\""; Key3SecretRef []github.com/crossplane/crossplane-runtime/apis/common/v1.SecretKeySelector "json:\"key3SecretRef\" tf:\"-\""}`,
-				atProvider:  `type example.Observation struct{}`,
-				validationRules: `
-// +kubebuilder:validation:XValidation:rule="!('*' in self.managementPolicies || 'Create' in self.managementPolicies || 'Update' in self.managementPolicies) || has(self.forProvider.key2SecretRef)",message="spec.forProvider.key2SecretRef is a required parameter"
-// +kubebuilder:validation:XValidation:rule="!('*' in self.managementPolicies || 'Create' in self.managementPolicies || 'Update' in self.managementPolicies) || has(self.forProvider.key3SecretRef)",message="spec.forProvider.key3SecretRef is a required parameter"`,
+				forProvider:     `type example.Parameters struct{Key1SecretRef *github.com/crossplane/crossplane-runtime/apis/common/v1.SecretKeySelector "json:\"key1SecretRef,omitempty\" tf:\"-\""; Key2SecretRef *github.com/crossplane/crossplane-runtime/apis/common/v1.SecretKeySelector "json:\"key2SecretRef,omitempty\" tf:\"-\""; Key3SecretRef *[]github.com/crossplane/crossplane-runtime/apis/common/v1.SecretKeySelector "json:\"key3SecretRef,omitempty\" tf:\"-\""}`,
+				atProvider:      `type example.Observation struct{}`,
+				validationRules: "",
 			},
 		},
 		"Invalid_Sensitive_Fields": {
 			args: args{
 				cfg: &config.Resource{
 					Name: "test_resource",
-					TerraformResource: &schema.Resource{
-						Schema: map[string]*schema.Schema{
+					UpjetResource: &tfjson.Resource{
+						Schema: map[string]*tfjson.Schema{
 							"key_1": {
-								Type:      schema.TypeFloat,
+								Type:      tfjson.TypeFloat,
 								Sensitive: true,
 							},
 						},
@@ -350,14 +347,14 @@ func TestBuild(t *testing.T) {
 		"References": {
 			args: args{
 				cfg: &config.Resource{
-					TerraformResource: &schema.Resource{
-						Schema: map[string]*schema.Schema{
+					UpjetResource: &tfjson.Resource{
+						Schema: map[string]*tfjson.Schema{
 							"name": {
-								Type:     schema.TypeString,
+								Type:     tfjson.TypeString,
 								Required: true,
 							},
 							"reference_id": {
-								Type:     schema.TypeString,
+								Type:     tfjson.TypeString,
 								Required: true,
 							},
 						},
@@ -381,10 +378,10 @@ func TestBuild(t *testing.T) {
 			args: args{
 				cfg: &config.Resource{
 					Name: "test_resource",
-					TerraformResource: &schema.Resource{
-						Schema: map[string]*schema.Schema{
+					UpjetResource: &tfjson.Resource{
+						Schema: map[string]*tfjson.Schema{
 							"name": {
-								Type:     schema.TypeInvalid,
+								Type:     tfjson.TypeInvalid,
 								Required: true,
 							},
 						},
@@ -392,22 +389,22 @@ func TestBuild(t *testing.T) {
 				},
 			},
 			want: want{
-				err: errors.Wrapf(errors.Wrapf(errors.Errorf("invalid schema type %s", "TypeInvalid"), "cannot infer type from schema of field %s", "name"), `cannot build the Types for resource "test_resource"`),
+				err: errors.Wrapf(errors.Wrapf(errors.Errorf("invalid schema type %s", "invalid"), "cannot infer type from schema of field %s", "name"), `cannot build the Types for resource "test_resource"`),
 			},
 		},
 		"Validation_Rules_With_Keywords": {
 			args: args{
 				cfg: &config.Resource{
-					TerraformResource: &schema.Resource{
-						Schema: map[string]*schema.Schema{
+					UpjetResource: &tfjson.Resource{
+						Schema: map[string]*tfjson.Schema{
 							"name": {
-								Type:     schema.TypeString,
+								Type:     tfjson.TypeString,
 								Required: true,
 							},
 							// "namespace" is a cel reserved value and should be wrapped when used in
 							// validation rules (i.e., __namespace__)
 							"namespace": {
-								Type:     schema.TypeString,
+								Type:     tfjson.TypeString,
 								Required: true,
 							},
 						},

@@ -154,7 +154,7 @@ func TestSingletonListEmbedder(t *testing.T) {
 	for n, tt := range tests {
 		t.Run(n, func(t *testing.T) {
 			e := &SingletonListEmbedder{}
-			r := DefaultResource(tt.args.name, tt.args.resource, nil, nil)
+			r := DefaultResource(tt.args.name, tt.args.resource, nil, nil, nil)
 			s := ResourceSchema{
 				tt.args.name: r,
 			}
