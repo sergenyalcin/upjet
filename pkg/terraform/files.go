@@ -12,8 +12,10 @@ import (
 	"strings"
 
 	"dario.cat/mergo"
+	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/feature"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
+	xpresource "github.com/crossplane/crossplane-runtime/pkg/resource"
 	"github.com/pkg/errors"
 	"github.com/spf13/afero"
 
@@ -109,7 +111,22 @@ func NewFileProducer(ctx context.Context, client resource.SecretClient, dir stri
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot get observation")
 	}
-	if err = resource.GetSensitiveObservation(ctx, client, tr.GetWriteConnectionSecretToReference(), obs); err != nil {
+
+	var secretRef *xpv1.SecretReference
+	switch trt := tr.(type) {
+	case xpresource.ConnectionSecretWriterTo:
+		secretRef = trt.GetWriteConnectionSecretToReference()
+	case xpresource.LocalConnectionSecretWriterTo:
+		if trt.GetWriteConnectionSecretToReference() != nil {
+			secretRef = &xpv1.SecretReference{
+				Name:      trt.GetWriteConnectionSecretToReference().Name,
+				Namespace: tr.GetNamespace(),
+			}
+		}
+	default:
+		return nil, errors.New("unknown managed resource type")
+	}
+	if err = resource.GetSensitiveObservation(ctx, client, secretRef, obs); err != nil {
 		return nil, errors.Wrap(err, "cannot get sensitive observation")
 	}
 	fp.observation = obs
