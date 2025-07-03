@@ -304,13 +304,26 @@ func NewSensitiveField(g *Builder, cfg *config.Resource, r *resource, sch *schem
 	f.FieldNameCamel += sfx
 
 	f.TFTag = "-"
-	switch f.FieldType.String() {
-	case "string", "*string":
-		f.FieldType = typeSecretKeySelector
-	case "[]string", "[]*string":
-		f.FieldType = types.NewSlice(typeSecretKeySelector)
-	case "map[string]string", "map[string]*string":
-		f.FieldType = typeSecretReference
+	if g.scope == CRDScopeCluster {
+		switch f.FieldType.String() {
+		case "string", "*string":
+			f.FieldType = typeSecretKeySelector
+		case "[]string", "[]*string":
+			f.FieldType = types.NewSlice(typeSecretKeySelector)
+		case "map[string]string", "map[string]*string":
+			f.FieldType = typeSecretReference
+		}
+	} else if g.scope == CRDScopeNamespaced {
+		switch f.FieldType.String() {
+		case "string", "*string":
+			f.FieldType = typeLocalSecretKeySelector
+		case "[]string", "[]*string":
+			f.FieldType = types.NewSlice(typeLocalSecretKeySelector)
+		case "map[string]string", "map[string]*string":
+			f.FieldType = typeLocalSecretReference
+		}
+	} else {
+		return nil, false, errors.Errorf("Invalid CRD scope %q", g.scope)
 	}
 	f.TransformedName = name.NewFromCamel(f.FieldNameCamel).LowerCamelComputed
 	f.JSONTag = f.TransformedName
