@@ -73,8 +73,8 @@ func NewReconciler(client client.Client, providerMgr manager.Manager, opts ...Op
 	return r
 }
 
-func Setup(mgr manager.Manager, crdToSetupFn map[schema.GroupKind]func(ctrl.Manager, ujcontroller.Options) error, o ujcontroller.Options) error {
-	name := "dynamiccrd"
+func Setup(mgr manager.Manager, crdToSetupFn map[schema.GroupKind]func(ctrl.Manager, ujcontroller.Options) error, nameSuffix string, o ujcontroller.Options) error {
+	name := "dynamiccrd/" + nameSuffix
 
 	r := NewReconciler(mgr.GetClient(), mgr,
 		WithCrdToSetupFn(crdToSetupFn),

@@ -22,7 +22,7 @@ func Setup_{{ .Group }}(mgr ctrl.Manager, o controller.Options) error {
         schema.GroupKind{Group: {{ $.Group }}CrdGroup, Kind: "{{ $kind }}"}: {{ $alias }}Setup,
         {{- end }}
     }
-	if err := dynamiccrd.Setup(mgr, crdToSetupFn, o); err != nil {
+	if err := dynamiccrd.Setup(mgr, crdToSetupFn, {{ .Group }}CrdGroup, o); err != nil {
 		return err
 	}
 	return nil
